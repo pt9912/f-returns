@@ -324,9 +324,9 @@ def build_nav(trades, prices, fx, base_ccy):
     cash = 0.0
     nav_rows = []
     by_date = trades.groupby(trades["Date"].dt.normalize())
-    for dt in cal:
+    for dt, grp in by_date:
         if dt in by_date.groups:
-            for _, r in by_date.get_group(dt).iterrows():
+            for _, r in grp.iterrows():
                 act, inst = r["Action"], r["Instrument"]
                 qty, price, fees, tax = (
                     float(r["Quantity"]),
