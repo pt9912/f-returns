@@ -1,0 +1,10 @@
+# Beispiel-Mapping (YAML) für Trades
+date: Buchungstag
+action: Vorgang
+symbol: Wertpapier
+asset_type: Typ
+qty: Stueck
+price: Kurs
+fee: Gebuehr
+tax: Steuer
+currency: Waehrung

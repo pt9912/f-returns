@@ -1,0 +1,4 @@
+# Beispiel-Mapping (YAML) für Prices
+date: Datum
+symbol: Symbol
+close: Schlusskurs

@@ -1,0 +1,27 @@
+id: degiro
+name: DEGIRO
+currency: EUR
+country: NL
+dividend_withholding_rate: 0.15
+trade_formats:
+  - file_glob: "*_account.csv"
+    delimiter: ","
+    date_format: "%Y-%m-%d"
+    columns:
+      datetime: "Date"
+      isin: "ISIN"
+      symbol: "Product"
+      side: "Type"
+      qty: "Quantity"
+      price: "Price"
+      currency: "Currency"
+      gross: "Total"
+      fee: "Transaction and/or third party fees"
+      tax: "Withholding Tax"
+    transforms:
+      - type: map
+        field: side
+        value:
+          Kauf: "Buy"
+          Verkauf: "Sell"
+          Dividende: "Dividend"

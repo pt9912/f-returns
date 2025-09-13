@@ -1,0 +1,66 @@
+$schema: "https://json-schema.org/draft/2020-12/schema"
+title: BrokerProfile
+type: object
+required: [name, id, currency, trade_formats]
+properties:
+  id:
+    type: string
+    description: stable short id, e.g. "degiro"
+    pattern: "^[a-z0-9_-]+$"
+  name:
+    type: string
+  currency:
+    type: string
+    description: default account/base currency (e.g. EUR)
+  country:
+    type: string
+    description: ISO 3166-1 alpha-2 country code (optional)
+  dividend_withholding_rate:
+    type: number
+    minimum: 0
+    maximum: 1
+    description: default withholding for foreign dividends (optional; per-ISIN overrides allowed)
+  isin_overrides:
+    type: object
+    additionalProperties:
+      type: object
+      properties:
+        asset_type: { type: string, enum: ["Equity","ETF","Bond","Fund","Crypto","Deriv","Cash","Other"] }
+        country: { type: string }
+        dividend_withholding_rate: { type: number, minimum: 0, maximum: 1 }
+  trade_formats:
+    type: array
+    description: How to parse broker CSVs into canonical trades/prices.
+    items:
+      type: object
+      required: [file_glob, delimiter, date_format, columns]
+      properties:
+        file_glob: { type: string, description: e.g. "*_transactions.csv" }
+        delimiter: { type: string, default: "," }
+        date_format: { type: string, description: strptime fmt, e.g. "%Y-%m-%d" }
+        encoding: { type: string, default: "utf-8" }
+        columns:
+          type: object
+          description: mapping of canonical fields to CSV column names
+          properties:
+            datetime: { type: string }
+            isin: { type: string }
+            symbol: { type: string }
+            side: { type: string, description: Buy/Sell/Dividend/Fee/etc." }
+            qty: { type: string }
+            price: { type: string }
+            currency: { type: string }
+            gross: { type: string }
+            fee: { type: string }
+            tax: { type: string }
+            fx_rate: { type: [string, "null"] }
+        transforms:
+          type: array
+          items:
+            type: object
+            properties:
+              type: { type: string, enum: ["rename","const","regex_sub","map","eval"] }
+              field: { type: string }
+              value: {}
+              pattern: { type: string }
+              replacement: { type: string }

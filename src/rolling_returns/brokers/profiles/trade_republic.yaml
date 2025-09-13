@@ -1,0 +1,26 @@
+id: trade_republic
+name: Trade Republic
+currency: EUR
+country: DE
+trade_formats:
+  - file_glob: "*_transactions.csv"
+    delimiter: ";"
+    date_format: "%d.%m.%Y"
+    columns:
+      datetime: "Datum"
+      isin: "ISIN"
+      symbol: "Wertpapier"
+      side: "Art"
+      qty: "Stück"
+      price: "Preis"
+      currency: "Währung"
+      gross: "Gesamt"
+      fee: "Gebühren"
+      tax: "Steuer"
+    transforms:
+      - type: map
+        field: side
+        value:
+          Kauf: "Buy"
+          Verkauf: "Sell"
+          Dividende: "Dividend"
