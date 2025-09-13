@@ -365,6 +365,12 @@ def _annualize(window_return: pd.Series, window: int) -> pd.Series:
         return (1.0 + window_return) ** (365.0 / float(window)) - 1.0
 
 
+def _as_path(p):
+    if p is None:
+        return None
+    return p if isinstance(p, Path) else Path(p)
+
+
 def run_legacy(
     *,
     csv_file: Path,
@@ -420,6 +426,11 @@ def run_legacy(
     Returns:
         Wörterbuch mit dem Ausgabepfad und dem DataFrame.
     """
+    csv_file = _as_path(csv_file)
+    nav_file = _as_path(nav_file)
+    flows_file = _as_path(flows_file)
+    output = _as_path(output)
+    output_prefix = _as_path(output_prefix)
     # Steuerrate berechnen
     tax_rate = calculate_tax_rate(base_rate=tax_rate, soli=soli, church_tax=church_tax)
 
@@ -513,13 +524,23 @@ def run_legacy(
     out_path = output
     if out_path is None:
         base_name = "combined"
+        parent_dir = Path.cwd()
         if csv_file:
+            csv_file = Path(csv_file)
             base_name = csv_file.stem
+            parent_dir = csv_file.parent
         elif nav_file:
+            nav_file = Path(nav_file)
             base_name = nav_file.stem
-        out_path = (csv_file.parent if csv_file else Path(".")) / f"{base_name}_with_returns.csv"
-    if output_prefix:
-        out_path = Path(output_prefix) / out_path.name
+            parent_dir = nav_file.parent
+        elif flows_file:
+            flows_file = Path(flows_file)
+            base_name = flows_file.stem
+            parent_dir = flows_file.parent
+
+        # wenn output_prefix gesetzt -> dort, sonst im Ordner der Eingabedatei
+        target_dir = Path(output_prefix) if output_prefix else parent_dir
+        out_path = target_dir / f"{base_name}_with_returns.csv"
 
     cols = [
         "Date",
