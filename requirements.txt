@@ -6,3 +6,7 @@ tqdm
 pyyaml
 flake8
 pytest
+hypothesis
+matplotlib
+numpy-financial
+tqdm
