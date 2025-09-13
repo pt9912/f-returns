@@ -1,0 +1,68 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "f-returns"
+version = "0.1.0"
+description = "Python-Toolkit für Rolling Returns, steuerliche Gewinnermittlung (FIFO, Verlusttöpfe) und FX-Handling mit YAML-Broker-Profilen."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "Finanz Team" }]
+keywords = ["finance", "returns", "fifo", "tax", "fx", "broker", "portfolio"]
+classifiers = [
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Operating System :: OS Independent",
+  "Topic :: Office/Business :: Financial",
+]
+
+dependencies = [
+  "pandas>=2.2",
+  "numpy>=1.26",
+  "pyyaml>=6.0.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.2",
+  "hypothesis>=6.112",
+  "pytest-cov>=5.0",
+  "pre-commit>=3.7",
+  "flake8>=7.0",
+  "isort>=5.13.2",
+  "black>=24.0",
+  "build",
+  "twine"
+]
+
+[project.scripts]
+rolling-returns = "rolling_returns.cli:main_rr"
+rr-convert = "rolling_returns.cli:main_convert"
+
+[project.urls]
+Homepage = "https://github.com/pt9912/f-returns"
+Issues = "https://github.com/pt9912/f-returns/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-q --cov=rolling_returns --cov-report=term-missing"
+
+[tool.setuptools.package-data]
+"rolling_returns" = ["**/*.yaml", "**/*.yml"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312"]
+skip-magic-trailing-comma = false
+
+[tool.isort]
+profile = "black"
+line_length = 100

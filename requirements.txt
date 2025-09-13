@@ -1,0 +1,8 @@
+pandas
+numpy
+matplotlib
+numpy-financial
+tqdm
+pyyaml
+flake8
+pytest

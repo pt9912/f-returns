@@ -1,0 +1,50 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-yaml
+        # Prüft auch deine mappings/*.yml
+        files: \.(yaml|yml)$
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-added-large-files  # Verhindert versehentliche Commits von großen Dateien (z. B. in data/)
+
+  - repo: https://github.com/psf/black
+    rev: 24.8.0
+    hooks:
+      - id: black
+        language_version: python3.12
+        exclude: ^legacy_depot\.py$
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: [--profile=black]  # Kompatibilität mit Black
+
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.1.1
+    hooks:
+      - id: flake8
+        additional_dependencies: [
+          flake8-bugbear,  # Fängt häufige Bugs
+          flake8-docstrings,  # Prüft Docstrings (optional)
+        ]
+        exclude: ^tests/  # Ignoriere Tests für Flake8 (falls gewünscht)
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.9.0
+    hooks:
+      - id: mypy
+        additional_dependencies: [types-pyyaml]  # Für YAML-Unterstützung
+        exclude: ^tests/  # Typprüfung für Tests oft weniger streng
+
+  - repo: local
+    hooks:
+      - id: pytest
+        name: Run pytest
+        entry: pytest
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]  # Optional: Nur vor Push ausführen (nicht vor jedem Commit)
