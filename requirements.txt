@@ -6,6 +6,7 @@ tqdm
 pyyaml
 flake8
 pytest
+pytest-cov
 hypothesis
 matplotlib
 numpy-financial
