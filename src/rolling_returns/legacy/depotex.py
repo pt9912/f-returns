@@ -521,26 +521,31 @@ def run_legacy(
         if money_weighted:
             df["Rolling_MWR_Ann"] = _annualize(df["Rolling_MWR"], window)
 
+    # --- Ausgabepfad bestimmen ---
     out_path = output
     if out_path is None:
         base_name = "combined"
         parent_dir = Path.cwd()
         if csv_file:
-            csv_file = Path(csv_file)
-            base_name = csv_file.stem
-            parent_dir = csv_file.parent
-        elif nav_file:
-            nav_file = Path(nav_file)
-            base_name = nav_file.stem
-            parent_dir = nav_file.parent
+            csv_p = Path(csv_file)
+            base_name = csv_p.stem
+            parent_dir = csv_p.parent
         elif flows_file:
-            flows_file = Path(flows_file)
-            base_name = flows_file.stem
-            parent_dir = flows_file.parent
+            fl_p = Path(flows_file)
+            base_name = fl_p.stem
+            parent_dir = fl_p.parent
+        elif nav_file:
+            nav_p = Path(nav_file)
+            base_name = nav_p.stem
+            parent_dir = nav_p.parent
 
-        # wenn output_prefix gesetzt -> dort, sonst im Ordner der Eingabedatei
+        # wenn output_prefix gesetzt -> dort, sonst Ordner der Eingabedatei
         target_dir = Path(output_prefix) if output_prefix else parent_dir
+        target_dir.mkdir(parents=True, exist_ok=True)
         out_path = target_dir / f"{base_name}_with_returns.csv"
+
+    # Datei schreiben
+    # df.to_csv(out_path, index=False)
 
     cols = [
         "Date",
@@ -600,4 +605,4 @@ def run_legacy(
         plt.close()
         logger.info(f"Plot gespeichert in: {plot_png}{' und ' + str(plot_svg) if save_svg else ''}")
 
-    return {"out_path": out_path, "df": out}
+    return {"out_path": Path(out_path), "df": out}
