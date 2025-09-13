@@ -186,11 +186,6 @@ def _convert_main(argv: list[str]) -> int:
     if ns.converter == "generic":
         from .converter.convert_broker import main as generic_main
 
-        args = ["--input", ns.input, "--out", ns.out]
-        if ns.dialect:
-            args += ["--dialect", ns.dialect]
-        if ns.config:
-            args += ["--config", ns.config]
         return generic_main(ns)
     return 0
 
