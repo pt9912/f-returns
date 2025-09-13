@@ -126,6 +126,9 @@ def read_fx(path, sep, dec):
     Returns:
         pd.DataFrame: FX-Daten mit validierten Spalten.
     """
+    # Fehlertolerant: Falls keine Datei vorhanden ist → leerer DF
+    if path is None or not Path(path).exists():
+        return pd.DataFrame(columns=["Date", "From", "To", "Rate"])
     fx = read_df(path, sep, dec)
     req = ["Date", "Currency", "RateToBase"]
     for c in req:

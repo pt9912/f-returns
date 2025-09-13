@@ -66,7 +66,7 @@ def convert_trades_df(df: pd.DataFrame, mapping: Dict[str, Any]) -> pd.DataFrame
     out = pd.DataFrame()
 
     # Datumskonvertierung (coerce → ungültige Datumsangaben werden NaT)
-    out["Date"] = pd.to_datetime(df[m["date"]], errors="coerce")
+    out["Date"] = pd.to_datetime(df.get(m.get("date", "date"), df.get("date")), errors="coerce")
 
     # Aktionen normalisieren (z. B. "buy" → "BUY")
     out["Action"] = (
@@ -78,7 +78,7 @@ def convert_trades_df(df: pd.DataFrame, mapping: Dict[str, Any]) -> pd.DataFrame
     )
 
     # Instrument und AssetType
-    out["Instrument"] = df[m["symbol"]].astype(str)
+    out["Instrument"] = df.get(m.get("symbol", "symbol"), df.get("symbol")).astype(str)
     out["AssetType"] = (
         df[m["asset_type"]].astype(str).str.lower() if m["asset_type"] in df.columns else "stock"
     )
@@ -115,9 +115,11 @@ def convert_prices_df(df: pd.DataFrame, mapping: Dict[str, Any]) -> pd.DataFrame
     m = {**DEFAULT_PRICE_MAP, **mapping}
     out = pd.DataFrame()
 
-    out["Date"] = pd.to_datetime(df[m["date"]], errors="coerce")
-    out["Instrument"] = df[m["symbol"]].astype(str)
-    out["ClosePrice"] = pd.to_numeric(df[m["close"]], errors="coerce")
+    out["Date"] = pd.to_datetime(df.get(m.get("date", "date"), df.get("date")), errors="coerce")
+    out["Instrument"] = df.get(m.get("symbol", "symbol"), df.get("symbol")).astype(str)
+    out["ClosePrice"] = pd.to_numeric(
+        df.get(m.get("close", "close"), df.get("close")), errors="coerce"
+    )
 
     # Ungültige Zeilen entfernen
     return out.dropna(subset=["Date", "Instrument", "ClosePrice"])

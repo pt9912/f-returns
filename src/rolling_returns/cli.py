@@ -162,7 +162,7 @@ def _returns_main(argv: list[str]) -> int:
         output=ns.output,
         output_prefix=ns.output_prefix,
     )
-    if res.get("returns"):
+    if res.get("returns") is not None:
         print(f"Ergebnis: {res['returns']}")
     return 0
 
