@@ -96,6 +96,7 @@ pre-commit run --all-files
 
 # Tests ausführen
 pytest
+pytest -q --cov=src --cov-report=term --cov-report=xml
 
 # Paket bauen & veröffentlichen
 python -m build
