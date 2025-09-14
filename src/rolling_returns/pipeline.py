@@ -135,14 +135,45 @@ def read_fx(path, sep, dec):
     Returns:
         pd.DataFrame: FX-Daten mit validierten Spalten.
     """
-    # Fehlertolerant: Falls keine Datei vorhanden ist → leerer DF
+    # # Fehlertolerant: Falls keine Datei vorhanden ist → leerer DF
+    # if path is None or not Path(path).exists():
+    #     return pd.DataFrame(columns=["Date", "From", "To", "Rate"])
+    # Fehlertolerant: falls keine Datei vorhanden -> leerer DF im neuen Schema
     if path is None or not Path(path).exists():
-        return pd.DataFrame(columns=["Date", "From", "To", "Rate"])
+        return pd.DataFrame(columns=["Date", "Currency", "RateToBase"])
+
     fx = read_df(path, sep, dec)
+
+    # --- Legacy-Unterstützung: zuerst mappen, dann validieren ---
+    if {"From", "To", "Rate"}.issubset(fx.columns):
+        to_counts = fx["To"].value_counts()
+        inferred_base = to_counts.idxmax() if not to_counts.empty else None
+
+        rows = []
+        for _, r in fx.iterrows():
+            rate = float(r["Rate"])
+            if inferred_base and r["To"] == inferred_base:
+                rows.append({"Date": r["Date"], "Currency": str(r["From"]), "RateToBase": rate})
+            elif inferred_base and r["From"] == inferred_base and rate != 0.0:
+                rows.append({"Date": r["Date"], "Currency": str(r["To"]), "RateToBase": 1.0 / rate})
+
+        fx = pd.DataFrame(rows, columns=["Date", "Currency", "RateToBase"])
+        if inferred_base is not None and not fx.empty:
+            base_rows = pd.DataFrame(
+                [
+                    {"Date": d, "Currency": inferred_base, "RateToBase": 1.0}
+                    for d in pd.unique(fx["Date"])
+                ]
+            )
+            fx = pd.concat([fx, base_rows], ignore_index=True).drop_duplicates(["Date", "Currency"])
+    # --- Ende Legacy-Mapping ---
+
+    # Jetzt erst validieren
     req = ["Date", "Currency", "RateToBase"]
     for c in req:
         if c not in fx.columns:
             raise ValueError(f"Spalte '{c}' fehlt in FX: {path}")
+
     fx["Date"] = pd.to_datetime(fx["Date"], errors="coerce")
     fx = fx.dropna(subset=["Date"]).sort_values(["Currency", "Date"]).reset_index(drop=True)
     fx["RateToBase"] = pd.to_numeric(fx["RateToBase"], errors="coerce")
@@ -344,7 +375,7 @@ def build_nav(trades, prices, fx, base_ccy):
 
     for dt in px.index:
         # 1) Trades des Tages verbuchen (vor Bewertung)
-        if dt in trades_by_day.groups:
+        if trades_by_day is not None and dt in trades_by_day.groups:
             grp = trades_by_day.get_group((dt))
             for _, r in grp.iterrows():
                 act, inst = r["Action"], r["Instrument"]
@@ -457,7 +488,20 @@ def compute_returns(nav, tax_cf, window, business_days, annualize, money_weighte
         pd.DataFrame: Renditezeitreihen.
     """
     df = nav.copy().sort_values("Date").reset_index(drop=True)
-    df["Cash_Flow"] = 0.0
+
+    # << NEU: Spalten robust normalisieren >>
+    if "Date" in df.columns:
+        df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+    for col in ("Start_NAV", "End_NAV", "Cash_Flow"):
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # Cash_Flow immer vorhanden halten
+    if "Cash_Flow" not in df.columns:
+        df["Cash_Flow"] = 0.0
+    else:
+        df["Cash_Flow"] = df["Cash_Flow"].fillna(0.0)
+    # << ENDE Neu >>
 
     # Steuer-CFs optional mergen – aber nur Cash_Flow auffüllen
     if tax_cf is not None and not tax_cf.empty:
@@ -469,14 +513,12 @@ def compute_returns(nav, tax_cf, window, business_days, annualize, money_weighte
     end_nav = df["End_NAV"].astype(float)
     prev = end_nav.shift(1)
 
-    # Guard: 0/NaN im Vorperioden-NAV ⇒ kein Return berechenbar
     invalid_prev = (prev <= 0) | (~np.isfinite(prev))
     adj_prev = prev.where(~invalid_prev, np.nan)
 
     daily_r = (end_nav - df["Cash_Flow"]) / adj_prev - 1.0
     daily_r.iloc[0] = np.nan
 
-    # TWR (business_days: fester Fensterumfang; sonst: zeitbasiert)
     if business_days:
         twr = (1.0 + daily_r).rolling(window=window, min_periods=window).apply(
             lambda x: x.prod(), raw=True
@@ -491,11 +533,9 @@ def compute_returns(nav, tax_cf, window, business_days, annualize, money_weighte
 
     df["Rolling_TWR"] = twr
 
-    # MWR (XIRR) optional
     if money_weighted:
         df["Rolling_MWR"] = _compute_rolling_mwr(df, window, business_days=business_days)
 
-    # Annualisierung optional
     if annualize:
         factor = 365.0 / float(window)
         df["Rolling_TWR_Ann"] = (1.0 + df["Rolling_TWR"]) ** factor - 1.0
@@ -587,6 +627,16 @@ def run_pipeline(
         nav = None
     result["nav"] = nav
 
+    if nav is not None and "End_NAV" not in nav.columns and "NAV" in nav.columns:
+        nav = nav.copy()
+        nav["NAV"] = pd.to_numeric(nav["NAV"], errors="coerce")
+        nav["Start_NAV"] = nav["NAV"].shift(1).fillna(nav["NAV"])
+        nav["End_NAV"] = nav["NAV"]
+        if "Cash_Flow" not in nav.columns:
+            nav["Cash_Flow"] = 0.0
+        nav = nav[["Date", "Start_NAV", "End_NAV", "Cash_Flow"]]
+        result["nav"] = nav
+
     # Ausgaben
     (out_dir / "trades_with_gains.csv").write_text(twg.to_csv(index=False), encoding="utf-8")
     (out_dir / "yearly_tax_report.csv").write_text(yearly.to_csv(index=False), encoding="utf-8")
@@ -632,8 +682,13 @@ def run_pipeline(
             plt.legend()
             png = out_dir / "returns.png"
             plt.tight_layout()
-            plt.savefig(png, dpi=200)
-            plt.close()
+            try:
+                plt.savefig(png, dpi=200)
+            except Exception as e:
+                logger.warning("Konnte PNG nicht speichern: %s", e)
+            finally:
+                plt.close()
+
             if save_svg:
                 svg = out_dir / "returns.svg"
                 plt.figure(figsize=(12, 6))
@@ -657,7 +712,11 @@ def run_pipeline(
                 plt.ylabel("Rendite [%]")
                 plt.legend()
                 plt.tight_layout()
-                plt.savefig(svg)
-                plt.close()
+                try:
+                    plt.savefig(svg)
+                except Exception as e:
+                    logger.warning("Konnte SVG nicht speichern: %s", e)
+                finally:
+                    plt.close()
 
     return result
