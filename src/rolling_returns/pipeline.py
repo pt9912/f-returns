@@ -3,7 +3,8 @@ rolling_returns.py - Berechnung rollierender Renditen und Steuerberichte (v1.8.3
 
 Zwei Betriebsmodi:
 1. **Legacy-Depot**: Ausgelagerte v1.6-Kompatibilität (über `legacy_mode.legacy_process`).
-2. **Trades/Prices**: Moderne Pipeline mit Instrument-Mapper, FX-Handling und Dividenden-Quellensteuer.
+2. **Trades/Prices**: Moderne Pipeline mit Instrument-Mapper, FX-Handling
+   und Dividenden-Quellensteuer.
 
 Wichtige Funktionen:
 - FIFO-Gewinnberechnung für Trades (inkl. FX-Umrechnung).

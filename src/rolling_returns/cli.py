@@ -207,7 +207,10 @@ def main_rr(argv=None):
     # Haupt-Parser für die CLI
     p = argparse.ArgumentParser(
         prog="f-returns",
-        description="Unified CLI für Renditeberechnungen (legacy | legacyex | returns | convert | version)",
+        description=(
+            "Unified CLI für Renditeberechnungen "
+            "(legacy | legacyex | returns | convert | version)"
+        ),
     )
 
     # Subparser für die verschiedenen Modi

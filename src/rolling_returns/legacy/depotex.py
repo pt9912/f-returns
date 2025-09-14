@@ -6,7 +6,8 @@ Features:
 - Geldgewichtete Rendite (MWR, XIRR) pro Fenster
 - Fenster als Kalendertage **oder** als Handelstage (--business-days)
 - Flexible Eingabe:
-    * eine Gesamt-CSV (Date, End_NAV [, Cash_Flow] [, Fee_Internal] [, Fee_External] [, Tax_Internal])
+    * eine Gesamt-CSV (Date, End_NAV [, Cash_Flow] [, Fee_Internal]
+    * [, Fee_External] [, Tax_Internal])
     * oder zwei Dateien: --nav-file (Date, End_NAV) und --flows-file (Date, Cash_Flow)
 - **Steuerberechnung** (Deutschland):
     * FIFO-Besteuerung für realisierte Gewinne
