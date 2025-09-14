@@ -16,5 +16,6 @@ pip install -e .[dev]
 
 echo "[post-create] installiere pre-commit Hooks..."
 pre-commit install --install-hooks || true
+pre-commit run --all-files || true
 
 echo "[post-create] fertig!"
