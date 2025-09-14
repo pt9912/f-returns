@@ -101,6 +101,17 @@ pytest -q --cov=src --cov-report=term --cov-report=xml
 # Paket bauen & veröffentlichen
 python -m build
 twine upload dist/*
+
+# docker build
+docker build -t f-returns:latest .
+
+# tests
+docker build --target tester -t f-returns:test .
+
+# run
+docker run --rm -v "$PWD:/work" -w /work f-returns:latest \
+  legacyex --csv-file tests/data/sample.csv --output results.csv
+
 ```
 
 > **Hinweis**:

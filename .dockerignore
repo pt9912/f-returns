@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+
+# Build/Dist
+dist/
+build/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+
+# Venv/Tools
+.venv/
+.env
+.env.*
+
+# VCS/IDE
+.git/
+.gitignore
+.mypy_cache/
+.pytest_cache/
+.hypothesis/
+.vscode/
+.devcontainer/
+
+# Daten/Arifacts
+data/
+nav_with_returns.csv
