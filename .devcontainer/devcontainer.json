@@ -4,6 +4,8 @@
   "features": {
     "ghcr.io/devcontainers/features/common-utils:2": {}
   },
+  // Nutze den vscode-User der Basis-Images
+  "remoteUser": "vscode",
   "customizations": {
     "vscode": {
       "extensions": [
@@ -11,9 +13,64 @@
         "ms-python.vscode-pylance",
         "ms-azuretools.vscode-docker",
         "charliermarsh.ruff",
-        "ms-python.black-formatter"
-      ]
+        "ms-python.black-formatter",
+        "ms-python.isort"
+      ],
+      // Moderne Settings (keine python.* Lint/Format Keys)
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.testing.pytestEnabled": true,
+        "python.testing.unittestEnabled": false,
+        "python.testing.pytestArgs": [
+          "tests"
+        ],
+        // Black als Default-Formatter für Python-Dateien
+        "[python]": {
+          "editor.defaultFormatter": "ms-python.black-formatter",
+          "editor.formatOnSave": true
+        },
+        "black-formatter.args": [
+          "--line-length",
+          "100"
+        ],
+        "isort.args": [
+          "--profile",
+          "black",
+          "--line-length",
+          "100"
+        ],
+        "editor.codeActionsOnSave": {
+          "source.organizeImports": true,
+          "source.fixAll": true
+        },
+        "ruff.settings": {
+          "lineLength": 100,
+          "lint": {
+            "extendIgnore": [
+              "E203"
+            ]
+          }
+        },
+        // Editor Defaults
+        "editor.formatOnSave": true,
+        "files.trimTrailingWhitespace": true,
+        "files.insertFinalNewline": true,
+        "python.testing.autoTestDiscoverOnSaveEnabled": true
+      }
     }
   },
-  "postCreateCommand": "pip install -e .[dev] && pre-commit install"
+  // Schnellere, reproduzierbare Pip-Installs
+  "containerEnv": {
+    "PIP_DISABLE_PIP_VERSION_CHECK": "1",
+    "PIP_NO_CACHE_DIR": "0"
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  // Optional: nach jedem Start kurz prüfen
+  "postStartCommand": "python -V && ruff --version || true",
+  // Optional fürs Debuggen mit Debugpy/ptrace
+  "runArgs": [
+    "--cap-add=SYS_PTRACE",
+    "--security-opt",
+    "seccomp=unconfined"
+  ]
 }

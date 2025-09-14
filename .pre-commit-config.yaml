@@ -20,7 +20,7 @@ repos:
     rev: 6.0.1
     hooks:
       - id: isort
-        args: [--profile=black]  # Kompatibilität mit Black
+        args: [--profile=black, --line-length=100]  # Kompatibilität mit Black
 
   - repo: https://github.com/pycqa/flake8
     rev: 7.1.1
