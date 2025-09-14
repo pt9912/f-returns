@@ -22,7 +22,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+# am Datei-Anfang (oben)
+import numpy as np
 import pandas as pd
+
+try:
+    import numpy_financial as _npf  # optional
+except ImportError:  # pragma: no cover - nur Laufzeitumgebung
+    _npf = None
+
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -321,20 +329,26 @@ def build_nav(trades, prices, fx, base_ccy):
         .reindex(cal)
         .ffill()
     )
-    pos = {inst: 0.0 for inst in px.columns}
+
+    pos = {}  # dynamisch je Instrument
     cash = 0.0
     nav_rows = []
-    by_date = trades.groupby(trades["Date"].dt.normalize())
-    for dt, grp in by_date:
-        if dt in by_date.groups:
+
+    # Trades nach Kalendertag gruppieren (normalisiert)
+    if trades is not None:
+        trades = trades.copy()
+        trades["Date"] = pd.to_datetime(trades["Date"]).dt.normalize()
+        trades_by_day = trades.groupby("Date", sort=False)
+    else:
+        trades_by_day = None
+
+    for dt in px.index:
+        # 1) Trades des Tages verbuchen (vor Bewertung)
+        if dt in trades_by_day.groups:
+            grp = trades_by_day.get_group((dt))
             for _, r in grp.iterrows():
                 act, inst = r["Action"], r["Instrument"]
-                qty, price, fees, tax = (
-                    float(r["Quantity"]),
-                    float(r["Price"]),
-                    float(r["Fees"]),
-                    float(r["Tax"]),
-                )
+                qty, price, fees, tax = map(float, (r["Quantity"], r["Price"], r["Fees"], r["Tax"]))
                 ccy = r["Currency"]
                 fxr = fx_lookup(fx, pd.Timestamp(dt), ccy, base_ccy)
                 if act == "BUY":
@@ -353,19 +367,79 @@ def build_nav(trades, prices, fx, base_ccy):
                     cash -= fees * fxr
                 elif act == "TAX":
                     cash -= tax * fxr
+
+        # 2) Bewertung zum Tagesende
         pv = 0.0
-        if dt in px.index:
-            row = px.loc[dt]
-            for inst in px.columns:
-                q = pos.get(inst, 0.0)
-                pr = row.get(inst, float("nan"))
-                if not pd.isna(pr) and abs(q) > 1e-12:
-                    ccy_series = trades.loc[trades["Instrument"] == inst, "Currency"].dropna()
-                    ccy = ccy_series.iloc[0] if not ccy_series.empty else base_ccy
-                    fxr = fx_lookup(fx, pd.Timestamp(dt), ccy, base_ccy)
-                    pv += q * pr * fxr
+        row = px.loc[dt]
+        for inst, q in pos.items():
+            pr = row.get(inst, np.nan) if inst in row.index else np.nan
+            if not pd.isna(pr) and abs(q) > 1e-12:
+                ccy_series = trades.loc[trades["Instrument"] == inst, "Currency"].dropna()
+                ccy = ccy_series.iloc[0] if not ccy_series.empty else base_ccy
+                fxr = fx_lookup(fx, pd.Timestamp(dt), ccy, base_ccy)
+                pv += q * pr * fxr
+
         nav_rows.append((dt, cash + pv))
+
     return pd.DataFrame(nav_rows, columns=["Date", "End_NAV"]).dropna()
+
+
+def _xirr_safe(cash: list[float], dates: list[pd.Timestamp]) -> float:
+    """Safe XIRR: gibt np.nan zurück statt Exception zu werfen."""
+    if _npf is None:
+        return float("nan")
+    # harte Guards
+    if not cash or not dates or len(cash) != len(dates):
+        return float("nan")
+    if any(pd.isna(d) for d in dates):
+        return float("nan")
+    try:
+        return float(_npf.xirr(cash, dates))
+    except Exception:
+        return float("nan")
+
+
+def _rolling_window_slice(
+    df: pd.DataFrame, i: int, window: int, *, business_days: bool
+) -> pd.DataFrame:
+    """Gibt das Fenster für Index i zurück (leer wenn nichts passt)."""
+    if business_days:
+        start = max(0, i - window + 1)
+        return df.iloc[start : i + 1]  # noqa: E203
+    end_date = df.at[i, "Date"]
+    if pd.isna(end_date):
+        return df.iloc[0:0]  # leeres Fenster
+    start_date = end_date - pd.Timedelta(days=window)
+    w = df[(df["Date"] > start_date) & (df["Date"] <= end_date)]
+    return w
+
+
+def _compute_rolling_mwr(df: pd.DataFrame, window: int, *, business_days: bool) -> pd.Series:
+    """Berechnet Rolling MWR (XIRR) je Zeile, robust gegen leere/NaT-Fenster."""
+    irr = pd.Series(np.nan, index=df.index, dtype="float64")
+
+    # schneller Exit, falls numpy-financial fehlt
+    if _npf is None:
+        logger.warning("numpy-financial fehlt – MWR entfällt.")
+        return irr
+
+    # Optional: für business_days die ersten (window-1) Positionen überspringen
+    start_i = window - 1 if business_days and window > 1 else 0
+
+    for i in range(start_i, len(df)):
+        w = _rolling_window_slice(df, i, window, business_days=business_days)
+        if w.empty:
+            continue
+
+        # Cashflows: Auszahlungen positiv für XIRR -> hier invertieren wir wie gehabt
+        cash = (-w["Cash_Flow"].astype(float)).tolist()
+        # Letzter NAV als Rückfluss am Periodenende
+        cash.append(float(w.iloc[-1]["End_NAV"]))
+        dates = w["Date"].tolist()
+
+        irr.iloc[i] = _xirr_safe(cash, dates)
+
+    return irr
 
 
 def compute_returns(nav, tax_cf, window, business_days, annualize, money_weighted):
@@ -384,14 +458,25 @@ def compute_returns(nav, tax_cf, window, business_days, annualize, money_weighte
     """
     df = nav.copy().sort_values("Date").reset_index(drop=True)
     df["Cash_Flow"] = 0.0
+
+    # Steuer-CFs optional mergen – aber nur Cash_Flow auffüllen
     if tax_cf is not None and not tax_cf.empty:
         df = pd.merge(df, tax_cf, on="Date", how="left", suffixes=("", "_tax"))
         df["Cash_Flow"] = df["Cash_Flow"].fillna(0.0) + df["Cash_Flow_tax"].fillna(0.0)
         df = df.drop(columns=[c for c in df.columns if c.endswith("_tax")])
+
+    # Ab hier IMMER die Tagesrenditen berechnen
     end_nav = df["End_NAV"].astype(float)
     prev = end_nav.shift(1)
-    daily_r = (end_nav - df["Cash_Flow"]) / prev - 1.0
-    daily_r.iloc[0] = float("nan")
+
+    # Guard: 0/NaN im Vorperioden-NAV ⇒ kein Return berechenbar
+    invalid_prev = (prev <= 0) | (~np.isfinite(prev))
+    adj_prev = prev.where(~invalid_prev, np.nan)
+
+    daily_r = (end_nav - df["Cash_Flow"]) / adj_prev - 1.0
+    daily_r.iloc[0] = np.nan
+
+    # TWR (business_days: fester Fensterumfang; sonst: zeitbasiert)
     if business_days:
         twr = (1.0 + daily_r).rolling(window=window, min_periods=window).apply(
             lambda x: x.prod(), raw=True
@@ -403,39 +488,20 @@ def compute_returns(nav, tax_cf, window, business_days, annualize, money_weighte
             s.rolling(window=f"{window}D").apply(lambda x: x.prod(), raw=True).reindex(s.index)
             - 1.0
         )
-    df["Rolling_TWR"] = twr
-    if money_weighted:
-        try:
-            import numpy_financial as npf
 
-            irr = pd.Series(float("nan"), index=df.index)
-            for i in range(len(df)):
-                if business_days and i < window:
-                    continue
-                if business_days:
-                    # fmt: off
-                    w = df.iloc[max(0, i - window + 1):i + 1]  # noqa: E203
-                    # fmt: on
-                else:
-                    end_date = df.at[i, "Date"]
-                    start_date = end_date - pd.Timedelta(days=window)
-                    w = df[(df["Date"] > start_date) & (df["Date"] <= end_date)]
-                if w.empty:
-                    continue
-                cash = (-w["Cash_Flow"].astype(float)).tolist()
-                cash.append(float(w.iloc[-1]["End_NAV"]))
-                dates = w["Date"].tolist()
-                try:
-                    irr.iloc[i] = npf.xirr(cash, dates)
-                except Exception:
-                    irr.iloc[i] = float("nan")
-            df["Rolling_MWR"] = irr
-        except ImportError:
-            logger.warning("numpy-financial fehlt – MWR entfällt.")
+    df["Rolling_TWR"] = twr
+
+    # MWR (XIRR) optional
+    if money_weighted:
+        df["Rolling_MWR"] = _compute_rolling_mwr(df, window, business_days=business_days)
+
+    # Annualisierung optional
     if annualize:
-        df["Rolling_TWR_Ann"] = (1.0 + df["Rolling_TWR"]) ** (365.0 / float(window)) - 1.0
+        factor = 365.0 / float(window)
+        df["Rolling_TWR_Ann"] = (1.0 + df["Rolling_TWR"]) ** factor - 1.0
         if "Rolling_MWR" in df.columns:
-            df["Rolling_MWR_Ann"] = (1.0 + df["Rolling_MWR"]) ** (365.0 / float(window)) - 1.0
+            df["Rolling_MWR_Ann"] = (1.0 + df["Rolling_MWR"]) ** factor - 1.0
+
     return df
 
 

@@ -17,8 +17,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from rolling_returns.exceptions import DataLoadError, InvalidInputError, RollingReturnsError
-
+from .exceptions import DataLoadError, InvalidInputError, RollingReturnsError
 from .legacy.depot import run_legacy
 from .legacy.depotex import run_legacy as run_legacy_ex
 from .pipeline import run_pipeline
@@ -50,9 +49,29 @@ def _add_tax_flags(p: argparse.ArgumentParser) -> None:
     p.add_argument("--include-tax", action="store_true")
 
 
+def _rr_exception_wrapper(fn):
+    """
+    Führt fn aus und mapped bekannte Fehler auf Exit-Codes.
+
+    Erfolgsfall: gibt 0 zurück (kein Exit).
+    """
+    try:
+        rv = fn()
+        return 0 if rv is None else rv
+    except InvalidInputError as e:
+        # Tests erwarten deutschen Prefix "Fehler: ..."
+        print(f"Fehler: {e}", file=sys.stderr)
+        raise SystemExit(2)
+    except DataLoadError as e:
+        print(f"Fehler: {e}", file=sys.stderr)
+        raise SystemExit(3)
+    except RollingReturnsError as e:
+        print(f"Fehler: {e}", file=sys.stderr)
+        raise SystemExit(1)
+
+
 def _legacy_main(argv: list[str]) -> int:
     p = argparse.ArgumentParser(prog="f-returns legacy", description="Legacy (Single-CSV) Pfad")
-    # vollständige Argumentliste (wie besprochen)
     p.add_argument("--csv-file", dest="csv_file", type=Path, required=True, help="Legacy Depot CSV")
     p.add_argument("--external-tax-column", type=str, default=None)
     p.add_argument("--nav-file", type=Path)
@@ -86,8 +105,7 @@ def _legacy_main(argv: list[str]) -> int:
 
 
 def _legacyex_main(argv: list[str]) -> int:
-    p = argparse.ArgumentParser(prog="f-returns legacy", description="Legacy (Single-CSV) Pfad")
-    # vollständige Argumentliste (wie besprochen)
+    p = argparse.ArgumentParser(prog="f-returns legacyex", description="Legacy (Extended) Pfad")
     p.add_argument("--csv-file", dest="csv_file", type=Path, required=True, help="Legacy Depot CSV")
     p.add_argument("--external-tax-column", type=str, default=None)
     p.add_argument("--nav-file", type=Path)
@@ -192,7 +210,7 @@ def _convert_main(argv: list[str]) -> int:
     return 0
 
 
-def main_rr(argv=None):
+def main(argv=None):
     """
     Haupt-Einstiegspunkt für die f-returns CLI.
 
@@ -222,10 +240,12 @@ def main_rr(argv=None):
     sub.add_parser("returns")
     sub.add_parser("convert")
     sub.add_parser("version")
+
     # Bei unbekannten Commands oder fehlenden Argumenten wird die Hilfe angezeigt
     if not argv:
         p.print_help()
         return 1
+
     cmd, rest = argv[0], argv[1:]
     if cmd == "legacy":
         return _legacy_main(rest)
@@ -236,33 +256,30 @@ def main_rr(argv=None):
     if cmd == "convert":
         return _convert_main(rest)
     if cmd == "version":
-        # Versucht, die Version aus dem Paket zu lesen, fällt aber auf "unknown" zurück
+        # Tests erwarten eine Zeile mit dem Wort "Version" bzw. "Version: unknown"
         try:
             from . import __version__
 
-            print(f"f-returns Version: {__version__}")
+            print(f"Version: {__version__}")
         except Exception:
             print("Version: unknown")
         return 0
+
     p.print_help()
     return 1
 
 
+def _cli_wrapper(argv=None) -> int:
+    return _rr_exception_wrapper(lambda: main(argv))
+
+
+def main_rr(argv=None) -> int:
+    """öffentlicher Entry-Point, den die Tests importieren."""
+    return main(argv)
+
+
+__all__ = ["main", "main_rr", "_rr_exception_wrapper"]
+
+
 if __name__ == "__main__":
-    raise SystemExit(main_rr())
-
-
-def _rr_exception_wrapper(fn, *args, **kwargs):
-    import sys
-
-    try:
-        return fn(*args, **kwargs)
-    except InvalidInputError as e:
-        print(f"Fehler: {e}", file=sys.stderr)
-        sys.exit(2)
-    except DataLoadError as e:
-        print(f"Datenfehler: {e}", file=sys.stderr)
-        sys.exit(3)
-    except RollingReturnsError as e:
-        print(f"Interner Fehler: {e}", file=sys.stderr)
-        sys.exit(1)
+    raise SystemExit(_cli_wrapper())
