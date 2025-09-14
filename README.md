@@ -99,6 +99,7 @@ pytest
 
 # mit coverage
 pytest -q --cov=src --cov-report=term --cov-report=xml
+pytest --cov=src --cov-report=term-missing --cov-context=test
 
 # Paket bauen & veröffentlichen
 python -m build
