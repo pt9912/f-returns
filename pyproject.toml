@@ -26,6 +26,9 @@ dependencies = [
   "pandas>=2.2",
   "numpy>=1.26",
   "pyyaml>=6.0.1",
+  "matplotlib",
+  "numpy-financial",
+  "tqdm",
 ]
 
 [project.optional-dependencies]
@@ -37,8 +40,9 @@ dev = [
   "flake8>=7.0",
   "isort>=5.13.2",
   "black>=24.0",
+  "ruff>=0.6",
   "build",
-  "twine"
+  "twine",
 ]
 
 [project.scripts]
@@ -53,7 +57,7 @@ Issues = "https://github.com/pt9912/f-returns/issues"
 where = ["src"]
 
 [tool.pytest.ini_options]
-addopts = "-q --cov=rolling_returns --cov-report=term-missing"
+# addopts = "-q --cov=src --cov-report=term-missing"
 
 [tool.setuptools.package-data]
 "rolling_returns" = ["**/*.yaml", "**/*.yml"]
