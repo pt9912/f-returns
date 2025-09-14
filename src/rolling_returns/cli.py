@@ -17,6 +17,8 @@ import argparse
 import sys
 from pathlib import Path
 
+from rolling_returns.exceptions import DataLoadError, InvalidInputError, RollingReturnsError
+
 from .legacy.depot import run_legacy
 from .legacy.depotex import run_legacy as run_legacy_ex
 from .pipeline import run_pipeline
@@ -248,3 +250,19 @@ def main_rr(argv=None):
 
 if __name__ == "__main__":
     raise SystemExit(main_rr())
+
+
+def _rr_exception_wrapper(fn, *args, **kwargs):
+    import sys
+
+    try:
+        return fn(*args, **kwargs)
+    except InvalidInputError as e:
+        print(f"Fehler: {e}", file=sys.stderr)
+        sys.exit(2)
+    except DataLoadError as e:
+        print(f"Datenfehler: {e}", file=sys.stderr)
+        sys.exit(3)
+    except RollingReturnsError as e:
+        print(f"Interner Fehler: {e}", file=sys.stderr)
+        sys.exit(1)

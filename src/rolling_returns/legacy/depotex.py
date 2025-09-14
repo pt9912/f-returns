@@ -35,6 +35,8 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
+from rolling_returns.exceptions import DataLoadError
+
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -460,7 +462,7 @@ def run_legacy(
         df = fl_df if df is None else pd.merge(df, fl_df, on="Date", how="outer")
 
     if df is None:
-        raise SystemExit("Keine Daten geladen.")
+        raise DataLoadError("Keine Daten geladen.")
 
     # Externe Gebühren vom Cash_Flow abziehen
     if "Fee_External" in df.columns:
