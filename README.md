@@ -96,6 +96,8 @@ pre-commit run --all-files
 
 # Tests ausführen
 pytest
+
+# mit coverage
 pytest -q --cov=src --cov-report=term --cov-report=xml
 
 # Paket bauen & veröffentlichen
